@@ -1,0 +1,32 @@
+# Build trees (produced by build.ps1 / cmake)
+build/
+build_standalone/
+out/
+
+# Compiler / linker intermediates
+*.o
+*.obj
+*.a
+*.elf
+*.bin
+*.dis
+*.hex
+*.map
+*.log
+*.d
+*.su
+*.list
+
+# Python
+__pycache__/
+*.pyc
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Keep prebuilt flashable firmware in dist/ tracked
+!dist/
+!dist/*.uf2
