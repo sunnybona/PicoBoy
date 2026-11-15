@@ -11,9 +11,25 @@ add_library(picoboy STATIC
     src/pb_input.cpp
     src/pb_settings.cpp
     src/pb_rom_menu.cpp      # GB/NES 共用的 ROM 菜单（外观按 GB 定版）
+    src/pb_flash_rom.cpp     # flash ROM 区 ustar tar 扫描（rom_uploader 写入）
 )
 
 target_include_directories(picoboy PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# 面板模式：0=240x240，1=240x320。PUBLIC 传出，所有编译单元看到同一分辨率。
+set(PB_SCREEN_MODE 0 CACHE STRING "LCD profile: 0=240x240, 1=240x320")
+set_property(CACHE PB_SCREEN_MODE PROPERTY STRINGS 0 1)
+target_compile_definitions(picoboy PUBLIC PB_SCREEN_MODE=${PB_SCREEN_MODE})
+
+# 面板旋转：0=竖屏/原生，1=横屏 90°（240x320 -> 320x240，完整显示 NES 256x240）。
+set(PB_LCD_ROTATE 0 CACHE STRING "LCD rotation: 0=portrait, 1=landscape 90")
+set_property(CACHE PB_LCD_ROTATE PROPERTY STRINGS 0 1)
+target_compile_definitions(picoboy PUBLIC PB_LCD_ROTATE=${PB_LCD_ROTATE})
+
+# 面板反色：1=发 ST7789 0x21（默认，多数面板需要），0=发 0x20。颜色发反时翻转。
+set(PB_LCD_INVERT 1 CACHE STRING "LCD invert: 1=0x21 on, 0=0x20 off")
+set_property(CACHE PB_LCD_INVERT PROPERTY STRINGS 0 1)
+target_compile_definitions(picoboy PUBLIC PB_LCD_INVERT=${PB_LCD_INVERT})
 
 # PicoBoy 板载 flash 是 16MB，SDK 默认按 2MB 算。pb_settings 要把设置放最后
 # 一扇区，必须知道真实容量；顺带让 flash.c 的范围断言正确。

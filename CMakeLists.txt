@@ -6,8 +6,10 @@
 #   tools/ PC 侧菜单渲染自检
 #
 # 两个 target：
-#   picoboy_gbc   Game Boy / Game Boy Color，ROM 编进 flash（gbc/rom.h）
-#   pico_nes      NES / FC，ROM 编进 flash（nes/roms/*.nes，configure 时打包）
+#   picoboy_gbc   Game Boy / Game Boy Color，运行时从 flash ROM 区读 ROM
+#   pico_nes      NES / FC，运行时从 flash ROM 区读 ROM
+# ROM 由 rom_uploader 打成未压缩 ustar tar 烧到固定 ROM 区（XIP 直读），
+# 固件不再在编译期内嵌 ROM，也不依赖 Python。
 cmake_minimum_required(VERSION 3.13)
 
 include(pico_sdk_import.cmake)
@@ -23,25 +25,6 @@ pico_sdk_init()
 add_subdirectory(bsp)
 
 # ---------------- Game Boy / GBC ----------------
-find_package(Python3 COMPONENTS Interpreter)
-if(NOT Python3_Interpreter_FOUND)
-    message(FATAL_ERROR "需要 python3 来生成 gb_rom.h / nes_rom.h")
-endif()
-
-# ROM 表：把 gbc/roms/*.gb(/.gbc) 编进 flash。和 NES 那边同一套做法 —— 源文件
-# 放目录、configure 时打包，生成物落在 build/，工程里不再存 19.5 MB 的 rom.h。
-# 增删 ROM 后要重新 configure（cmake -S . -B build 会自动重跑）。
-execute_process(
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gbc/tools/gen_gb_rom.py
-            --roms ${CMAKE_CURRENT_LIST_DIR}/gbc/roms
-            --out  ${CMAKE_CURRENT_BINARY_DIR}/gb_rom.h
-    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-    RESULT_VARIABLE PB_GB_ROM_RESULT
-)
-if(NOT PB_GB_ROM_RESULT EQUAL 0)
-    message(FATAL_ERROR "gen_gb_rom.py 失败（返回 ${PB_GB_ROM_RESULT}）")
-endif()
-
 # minigb_apu：Game Boy APU。采样率必须与 BSP PWM 载波一致（61035）
 # 才能音画平衡，所以宏挂在库上 PUBLIC 传下去。
 add_library(minigb_apu STATIC gbc/minigb_apu/minigb_apu.cpp)
@@ -53,12 +36,11 @@ target_compile_definitions(minigb_apu PUBLIC
 
 add_executable(picoboy_gbc
     gbc/main.cpp
-    gbc/rom_menu.cpp        # GB 侧适配：把 pb_rom_entry_t 转成共用菜单项
+    gbc/rom_menu.cpp        # GB 侧适配：把 flash ROM 条目转成共用菜单项
 )
 target_include_directories(picoboy_gbc PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/gbc
     ${CMAKE_CURRENT_LIST_DIR}/gbc/third_party/Walnut-CGB
-    ${CMAKE_CURRENT_BINARY_DIR}          # 生成的 gb_rom.h
 )
 target_link_libraries(picoboy_gbc PRIVATE picoboy minigb_apu)
 target_compile_options(picoboy_gbc PRIVATE -O3)
@@ -82,27 +64,12 @@ target_include_directories(infones PUBLIC ${CMAKE_CURRENT_LIST_DIR}/nes/infones)
 target_link_libraries(infones PUBLIC pico_stdlib)
 target_compile_options(infones PRIVATE -O3)
 
-# ROM 表：把 nes/roms/*.nes 编进 flash。增删 ROM 后要重新 configure。
-# （Python3 已在 GB 段 find_package 过）
-
-execute_process(
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/nes/tools/gen_nes_rom.py
-            --roms ${CMAKE_CURRENT_LIST_DIR}/nes/roms
-            --out  ${CMAKE_CURRENT_BINARY_DIR}/nes_rom.h
-    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-    RESULT_VARIABLE PB_NES_ROM_RESULT
-)
-if(NOT PB_NES_ROM_RESULT EQUAL 0)
-    message(FATAL_ERROR "gen_nes_rom.py 失败（返回 ${PB_NES_ROM_RESULT}）")
-endif()
-
 add_executable(pico_nes
     nes/main.cpp
     nes/src/InfoNES_System_Pico.cpp
 )
 target_include_directories(pico_nes PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/nes/include
-    ${CMAKE_CURRENT_BINARY_DIR}          # 生成的 nes_rom.h
 )
 target_link_libraries(pico_nes PRIVATE picoboy infones)
 target_compile_options(pico_nes PRIVATE -O3)

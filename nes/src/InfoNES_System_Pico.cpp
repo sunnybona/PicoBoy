@@ -24,7 +24,6 @@
 #include "InfoNES_System.h"
 
 #include "pb_nes.h"
-#include "nes_rom.h"
 
 /*===================================================================*/
 /*  调色板                                                           */

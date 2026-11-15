@@ -3,7 +3,7 @@
  *
  * 菜单的绘制、按键手感、配色全部由 BSP 的 pb_rom_menu 负责（与 NES 同一份代码），
  * 这里只做三件事：
- *   1) 把 pb_rom_entry_t 转换成共用菜单项：名字砍掉 "(USA)" 之类的区域后缀，
+ *   1) 把 pb_flash_rom_entry_t 转换成共用菜单项：名字砍掉 "(USA)" 之类的区域后缀，
  *      信息行填 "容量 MBC 机型"
  *   2) 提供标题/副标题文案
  *   3) 装上 Y 键回调，进 BSP 的亮度/音量设置页
@@ -18,8 +18,8 @@
 #include "picoboy/pb_display.h"
 #include "picoboy/pb_settings.h"
 #include "picoboy/pb_rom_menu.h"
+#include "picoboy/pb_flash_rom.h"
 
-#include "pb_roms.h"
 #include "rom_menu.h"
 
 /* 2 倍字形从 x=14 起，模块内最多 27 字符（含 "序号 " 前缀），名字留 24 */
@@ -28,7 +28,7 @@
 /* 一张卡一项；GB 这端按 32 张封顶，够用且静态分配不占堆 */
 #define MENU_MAX_ROMS 32
 
-static const pb_rom_entry_t *g_roms;
+static const pb_flash_rom_entry_t *g_roms;
 static int g_count;
 
 static pb_menu_item_t s_items[MENU_MAX_ROMS];
@@ -96,7 +96,7 @@ static void gb_setup(void)
 
 /* ---------------- 对外接口 ---------------- */
 
-int pb_rom_menu_select(const pb_rom_entry_t *roms, int count)
+int pb_rom_menu_select(const pb_flash_rom_entry_t *roms, int count)
 {
     if(count <= 0)
         return -1;
@@ -119,7 +119,7 @@ int pb_rom_menu_select(const pb_rom_entry_t *roms, int count)
     return pb_rom_menu_select(&style, s_items, g_count);
 }
 
-void pb_rom_splash(int idx, const pb_rom_entry_t *roms)
+void pb_rom_splash(int idx, const pb_flash_rom_entry_t *roms)
 {
     if(idx < 0)
         return;

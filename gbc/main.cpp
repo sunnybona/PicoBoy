@@ -36,7 +36,7 @@ struct gb_s;
 #include "walnut_cgb.h"
 
 #include "minigb_apu/minigb_apu.h"
-#include "gb_rom.h"     /* gbc/tools/gen_gb_rom.py 生成：pb_roms[] + PB_ROM_COUNT */
+#include "picoboy/pb_flash_rom.h"   /* flash ROM 区 ustar tar 扫描 */
 #include "rom_menu.h"
 
 /* 卡带 RAM：CGB 常见上限 4 个 8KB bank = 32KB（宝可梦水晶等） */
@@ -46,16 +46,15 @@ static uint8_t cart_ram[CART_RAM_SIZE];
 static struct gb_s gb;
 static struct minigb_apu_ctx apu;
 
-/* 当前选中的内嵌 ROM（gen_rom.py 生成的描述表） */
-static const pb_rom_entry_t *s_rom;
-static uint32_t s_rom_mask;
+/* 当前选中的 ROM：指向 flash（XIP 直读），不做 RAM 拷贝 */
+static const uint8_t *g_rom_data;
+static uint32_t       g_rom_size;
 
 /* ---------------- ROM 读取 ---------------- */
-/* ROM 长度都是 2 的幂（64KB/128KB/1MB…），用掩码做边界，免掉每次读都做比较。
- * ROM 以 const 数组驻留 flash，XIP 直接读。 */
+/* 按真实大小做边界，越界返回 0xFF（GB ROM 多为 2 的幂，边界判断同样安全）。 */
 static inline uint8_t rom_byte(uint32_t addr)
 {
-    return s_rom->data[addr & s_rom_mask];
+    return addr < g_rom_size ? g_rom_data[addr] : 0xFF;
 }
 
 static uint8_t gb_rom_read(struct gb_s *gbp, const uint_fast32_t addr)
@@ -175,6 +174,35 @@ static void update_pad(void)
         gb.hram_io[IO_IDX_IF] |= 0x10;
 }
 
+/* ---------------- flash ROM 校验 ---------------- */
+/* Nintendo logo（0x104..0x133 的前 16 字节足够判定） */
+static const uint8_t k_logo_sig[] = {
+    0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B,
+    0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D};
+
+static bool check_gb_logo(const uint8_t *d)
+{
+    for(uint32_t i = 0; i < sizeof(k_logo_sig); i++)
+        if(d[0x104 + i] != k_logo_sig[i])
+            return false;
+    return true;
+}
+
+/* 头校验和（0x134..0x14C），与 logo 任一成立即算合法 */
+static bool check_gb_header_checksum(const uint8_t *d)
+{
+    int chk = 0;
+    for(int i = 0x134; i <= 0x14C; i++)
+        chk = chk - d[i] - 1;
+    return (chk & 0xFF) == (int)d[0x14D];
+}
+
+static bool gb_rom_validator(const uint8_t *data, uint32_t size)
+{
+    if(size < 0x150) return false;
+    return check_gb_logo(data) || check_gb_header_checksum(data);
+}
+
 /* ---------------- 错误页 ---------------- */
 static void fatal(const char *msg)
 {
@@ -199,17 +227,19 @@ int main(void)
     /* 亮度和音量来自 flash 里存的设置（没存过就用默认：9 档亮 / 8 档音量） */
     pb_settings_init();
 
+    /* 扫描 flash ROM 区（rom_uploader 写入的 tar），静态数组不占堆 */
+    static pb_flash_rom_entry_t roms[32];
+    int rom_count = pb_flash_rom_scan(roms, 32, gb_rom_validator);
+
     /* 多 ROM 才有菜单；只有一个时直接进游戏 */
-    int idx = pb_rom_menu_select(pb_roms, (int)PB_ROM_COUNT);
+    int idx = pb_rom_menu_select(roms, rom_count);
     if(idx < 0)
-        fatal("NO ROM EMBEDDED");
+        fatal("NO ROM IN FLASH");
 
-    s_rom = &pb_roms[idx];
-    if(s_rom->size == 0 || (s_rom->size & (s_rom->size - 1u)) != 0)
-        fatal("ROM SIZE NOT 2^N");
-    s_rom_mask = s_rom->size - 1u;
+    g_rom_data = roms[idx].data;
+    g_rom_size = roms[idx].size;
 
-    pb_rom_splash(idx, pb_roms);
+    pb_rom_splash(idx, roms);
 
     enum gb_init_error_e ret = gb_init(&gb, &gb_rom_read, &gb_rom_read16,
                                        &gb_rom_read32, &gb_cart_ram_read,

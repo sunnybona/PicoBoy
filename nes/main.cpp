@@ -24,7 +24,7 @@
 #include "InfoNES_System.h"
 
 #include "pb_nes.h"
-#include "nes_rom.h"
+#include "picoboy/pb_flash_rom.h"
 
 /*-------------------------------------------------------------------*/
 /*  小工具                                                            */
@@ -76,9 +76,32 @@ static void wait_keys_released( uint8_t mask )
 /*-------------------------------------------------------------------*/
 #define PB_MENU_MAX_ROMS 32
 
-static pb_menu_item_t s_items[ PB_MENU_MAX_ROMS ];
+static pb_flash_rom_entry_t s_flash[ PB_MENU_MAX_ROMS ];
+static pb_nes_rom_t        s_roms[ PB_MENU_MAX_ROMS ];
+static pb_menu_item_t      s_items[ PB_MENU_MAX_ROMS ];
 static char s_infos[ PB_MENU_MAX_ROMS ][ 32 ];
 static char s_sub[ 32 ];
+
+/* flash ROM 校验：iNES 魔数 "NES\x1a" */
+static bool nes_rom_validator( const uint8_t *data, uint32_t size )
+{
+    return size >= 16 &&
+           data[ 0 ] == 'N' && data[ 1 ] == 'E' &&
+           data[ 2 ] == 'S' && data[ 3 ] == 0x1a;
+}
+
+/* 从 iNES 头解析出 pb_nes_rom_t（data 仍指 flash，不拷贝） */
+static void parse_nes_rom( int i )
+{
+    const uint8_t *d = s_flash[ i ].data;
+
+    s_roms[ i ].name   = s_flash[ i ].name;
+    s_roms[ i ].mapper = ( uint8_t )( ( d[ 6 ] >> 4 ) | ( d[ 7 ] & 0xF0 ) );
+    s_roms[ i ].prg_kb = ( uint16_t )( d[ 4 ] * 16u );
+    s_roms[ i ].chr_kb = ( uint16_t )( d[ 5 ] * 8u );
+    s_roms[ i ].data   = d;
+    s_roms[ i ].size   = s_flash[ i ].size;
+}
 
 /* Y：进 BSP 设置页，返回后落盘（此刻单核，擦 flash 不影响推屏） */
 static void nes_setup( void )
@@ -87,31 +110,25 @@ static void nes_setup( void )
     pb_settings_save();
 }
 
-static int rom_menu( void )
+static int rom_menu( int n )
 {
-    if ( PB_NES_ROM_COUNT == 0 )
-        return -1;
-
-    int n = ( int )PB_NES_ROM_COUNT;
-    if ( n > PB_MENU_MAX_ROMS ) n = PB_MENU_MAX_ROMS;
-
     for ( int i = 0; i < n; ++i )
     {
-        char chr_txt[ 8 ];
+        parse_nes_rom( i );
 
+        char chr_txt[ 8 ];
         /* chr_kb == 0 表示卡带里没有 CHR ROM，PPU 用板载 8KB CHR RAM */
-        if ( pb_nes_roms[ i ].chr_kb == 0 )
+        if ( s_roms[ i ].chr_kb == 0 )
             strcpy( chr_txt, "RAM" );
         else
-            snprintf( chr_txt, sizeof chr_txt, "%dK",
-                      ( int )pb_nes_roms[ i ].chr_kb );
+            snprintf( chr_txt, sizeof chr_txt, "%dK", ( int )s_roms[ i ].chr_kb );
 
         snprintf( s_infos[ i ], sizeof s_infos[ i ],
                   "MAPPER %d  PRG %dK  CHR %s",
-                  ( int )pb_nes_roms[ i ].mapper,
-                  ( int )pb_nes_roms[ i ].prg_kb, chr_txt );
+                  ( int )s_roms[ i ].mapper,
+                  ( int )s_roms[ i ].prg_kb, chr_txt );
 
-        s_items[ i ].name = pb_nes_roms[ i ].name;
+        s_items[ i ].name = s_roms[ i ].name;
         s_items[ i ].info = s_infos[ i ];
     }
 
@@ -152,17 +169,20 @@ int main( void )
     stdio_init_all();
 
     pb_display_init();
-    pb_display_set_invert( true );
     pb_audio_init();
     pb_input_init();
 
     /* 亮度和音量来自 flash 里存的设置（没存过就用默认：9 档亮 / 8 档音量） */
     pb_settings_init();
 
-    int idx = rom_menu();
+    /* 扫描 flash ROM 区（rom_uploader 写入的 tar），静态数组不占堆 */
+    int rom_count = pb_flash_rom_scan( s_flash, PB_MENU_MAX_ROMS,
+                                       nes_rom_validator );
+
+    int idx = rom_menu( rom_count );
     if ( idx < 0 )
     {
-        show_message( "NO ROM", "PUT .NES FILES IN roms/ AND REBUILD" );
+        show_message( "NO ROM", "USE rom_uploader TO FLASH .NES" );
         for ( ;; )
         {
             pb_input_poll();
@@ -171,22 +191,22 @@ int main( void )
                 pb_settings_menu();
                 pb_settings_save();
                 wait_keys_released( PB_BTN_A | PB_BTN_B | PB_BTN_Y );
-                show_message( "NO ROM", "PUT .NES FILES IN roms/ AND REBUILD" );
+                show_message( "NO ROM", "USE rom_uploader TO FLASH .NES" );
             }
             sleep_ms( 20 );
         }
     }
 
-    pb_nes_set_rom( &pb_nes_roms[ idx ] );
+    pb_nes_set_rom( &s_roms[ idx ] );
 
     /* 与 GB 工程一致：进游戏前先给 LOADING + 游戏名 */
-    pb_rom_menu_splash( pb_nes_roms[ idx ].name );
+    pb_rom_menu_splash( s_roms[ idx ].name );
 
     pb_clear( PB_BLACK );
     pb_display_flush();
 
-    printf( "pico-nes: %s (mapper %d)\n", pb_nes_roms[ idx ].name,
-            ( int )pb_nes_roms[ idx ].mapper );
+    printf( "pico-nes: %s (mapper %d)\n", s_roms[ idx ].name,
+            ( int )s_roms[ idx ].mapper );
 
     InfoNES_Init();
 

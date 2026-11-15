@@ -1,20 +1,26 @@
 /*
  * pb_nes.h — pico-nes 的公共配置与 ROM 表结构
  *
- * 屏幕是 240x240，NES 可见区是 256x240，所以左右各裁掉 8 列做 1:1 显示
- * （不缩放，省 CPU，也避免非整数缩放糊掉像素）。
+ * 竖屏（240 宽）：NES 256x240 左右各裁 8 列，取中间 240 列 1:1 显示。
+ * 横屏（240x320 旋转成 320x240）：完整保留 256 列，由 BSP 水平居中，不裁剪。
  */
 #ifndef PB_NES_H
 #define PB_NES_H
 
 #include <stdint.h>
 
+#include "picoboy/board.h"
 #include "picoboy/pb_input.h"
 
-/* 送屏可视区：256 列里取中间 240 列 */
+/* 送屏可视区：横屏用完整 256 列；竖屏取中间 240 列 */
 #define PB_NES_SRC_W   256
+#if PB_LCD_ROTATE
+#define PB_NES_CROP_X  0
+#define PB_NES_VIEW_W  256
+#else
 #define PB_NES_CROP_X  8
 #define PB_NES_VIEW_W  240
+#endif
 #define PB_NES_VIEW_H  240
 
 /* 一帧节拍：2C02 是 60.0988Hz，约 16639us。和 NES 真实帧率一致，
@@ -24,10 +30,10 @@
 /* 选中 ROM 的键 */
 #define PB_NES_KEY_OK   (PB_BTN_A)
 
-/* 一份内嵌 ROM（由 tools/gen_nes_rom.py 生成到 nes_rom.h） */
+/* 一份 NES ROM 描述（data 指向 flash ROM 区，由 pb_flash_rom 扫出的条目构造） */
 typedef struct
 {
-    const char    *name;      /* 显示名（大写 ASCII，来自文件名） */
+    const char    *name;      /* 显示名（来自 tar 文件名） */
     uint8_t        mapper;    /* iNES mapper 号 */
     uint16_t       prg_kb;    /* PRG ROM 大小（KiB） */
     uint16_t       chr_kb;    /* CHR ROM 大小（KiB），0 表示 CHR RAM */

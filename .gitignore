@@ -1,6 +1,8 @@
 # Build trees (produced by build.ps1 / cmake)
 build/
 build_standalone/
+_build*/
+_pkg_stage/
 out/
 
 # Compiler / linker intermediates
@@ -30,3 +32,6 @@ Thumbs.db
 # Keep prebuilt flashable firmware in dist/ tracked
 !dist/
 !dist/*.uf2
+
+# Release archives (prebuilt firmware is already tracked under dist/)
+*.zip
