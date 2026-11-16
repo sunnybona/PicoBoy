@@ -7,7 +7,6 @@
 
 add_library(picoboy STATIC
     src/pb_display.cpp
-    src/pb_audio.cpp
     src/pb_input.cpp
     src/pb_settings.cpp
     src/pb_rom_menu.cpp      # GB/NES 共用的 ROM 菜单（外观按 GB 定版）
@@ -15,6 +14,18 @@ add_library(picoboy STATIC
 )
 
 target_include_directories(picoboy PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# 音频后端：0=单 GPIO PWM 当 DAC（默认），1=PIO I2S（外部 I2S DAC，如 MAX98357A）。
+set(PB_AUDIO_I2S 0 CACHE STRING "Audio backend: 0=PWM DAC, 1=PIO I2S")
+set_property(CACHE PB_AUDIO_I2S PROPERTY STRINGS 0 1)
+if(PB_AUDIO_I2S)
+    target_sources(picoboy PRIVATE src/pb_audio_i2s.cpp)
+    target_compile_definitions(picoboy PUBLIC PB_AUDIO_I2S=1)
+    pico_generate_pio_header(picoboy ${CMAKE_CURRENT_SOURCE_DIR}/src/pb_i2s.pio)
+else()
+    target_sources(picoboy PRIVATE src/pb_audio.cpp)
+    target_compile_definitions(picoboy PUBLIC PB_AUDIO_I2S=0)
+endif()
 
 # 面板模式：0=240x240，1=240x320。PUBLIC 传出，所有编译单元看到同一分辨率。
 set(PB_SCREEN_MODE 0 CACHE STRING "LCD profile: 0=240x240, 1=240x320")
