@@ -12,6 +12,7 @@
 
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "hardware/watchdog.h"
 
 #include "picoboy/board.h"
 #include "picoboy/pb_display.h"
@@ -233,26 +234,42 @@ int main( void )
 
     /* 复位：X+Y（即 NES 的 Start+Select）按住约 1 秒 */
     int reset_hold = 0;
+    /* A+B+X+Y 四键同按约 1 秒：软复位回 bootloader 选择菜单 */
+    int exit_hold = 0;
 
     uint64_t next_us = time_us_64() + PB_NES_FRAME_US;
 
     for ( ;; )
     {
         pb_input_poll();
+        uint8_t btns = pb_input_read();
 
-        if ( ( pb_input_read() & ( PB_BTN_X | PB_BTN_Y ) ) ==
-             ( PB_BTN_X | PB_BTN_Y ) )
+        /* 四键同按优先级最高，先于 X+Y 软复位，避免进游戏又立刻复位 */
+        if ( ( btns & ( PB_BTN_A | PB_BTN_B | PB_BTN_X | PB_BTN_Y ) ) ==
+             ( PB_BTN_A | PB_BTN_B | PB_BTN_X | PB_BTN_Y ) )
         {
-            if ( ++reset_hold >= 60 )
-            {
-                printf( "pico-nes: soft reset\n" );
-                InfoNES_Reset();
-                reset_hold = 0;
-            }
+            reset_hold = 0;
+            if ( ++exit_hold >= 60 )
+                watchdog_reboot( 0, 0, 0 );
         }
         else
         {
-            reset_hold = 0;
+            exit_hold = 0;
+
+            if ( ( btns & ( PB_BTN_X | PB_BTN_Y ) ) ==
+                 ( PB_BTN_X | PB_BTN_Y ) )
+            {
+                if ( ++reset_hold >= 60 )
+                {
+                    printf( "pico-nes: soft reset\n" );
+                    InfoNES_Reset();
+                    reset_hold = 0;
+                }
+            }
+            else
+            {
+                reset_hold = 0;
+            }
         }
 
         pb_display_nes_begin_frame();

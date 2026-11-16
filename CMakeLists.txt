@@ -48,9 +48,9 @@ target_compile_options(picoboy_gbc PRIVATE -O3)
 pico_enable_stdio_usb(picoboy_gbc 1)
 pico_enable_stdio_uart(picoboy_gbc 0)
 
-# 本机 flash 16MB：SDK 默认 memmap 只认 2MB，超出会链接报错
+# GBC 应用链接到固定槽位 0x10010000（由 bootloader 跳转进入），向量表在槽+0x100
 set_target_properties(picoboy_gbc PROPERTIES
-    PICO_TARGET_LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/memmap_pico16m.ld)
+    PICO_TARGET_LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/memmap_gbc_slot.ld)
 
 pico_add_extra_outputs(picoboy_gbc)
 
@@ -84,7 +84,25 @@ target_compile_definitions(pico_nes PRIVATE
 pico_enable_stdio_usb(pico_nes 1)
 pico_enable_stdio_uart(pico_nes 0)
 
+# NES 应用链接到固定槽位 0x10080000（由 bootloader 跳转进入），向量表在槽+0x100
 set_target_properties(pico_nes PROPERTIES
-    PICO_TARGET_LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/memmap_pico16m.ld)
+    PICO_TARGET_LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/memmap_nes_slot.ld)
 
 pico_add_extra_outputs(pico_nes)
+
+# ---------------- Bootloader（开机系统选择） ----------------
+# 位于 flash 起点 0x10000000，开机出 GBC/NES 菜单，设置 VTOR 后跳到槽位应用。
+# 只做菜单和跳转，不启动双核推屏，保持单帧缓冲即可。
+add_executable(picoboy_boot
+    boot/bootloader.cpp
+)
+target_link_libraries(picoboy_boot PRIVATE picoboy)
+target_compile_options(picoboy_boot PRIVATE -O3)
+
+pico_enable_stdio_usb(picoboy_boot 1)
+pico_enable_stdio_uart(picoboy_boot 0)
+
+set_target_properties(picoboy_boot PROPERTIES
+    PICO_TARGET_LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/memmap_pico16m.ld)
+
+pico_add_extra_outputs(picoboy_boot)

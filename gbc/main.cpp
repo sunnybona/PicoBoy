@@ -17,6 +17,7 @@
  */
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "hardware/watchdog.h"
 
 #include "picoboy/pb_display.h"
 #include "picoboy/pb_audio.h"
@@ -272,10 +273,24 @@ int main(void)
     const uint64_t frame_us = 16743;
     uint64_t next_us = time_us_64();
 
+    /* A+B+X+Y 四键同按约 1 秒：软复位回到 bootloader 选择菜单 */
+    int exit_hold = 0;
+
     while(true)
     {
         pb_input_poll();
         update_pad();
+
+        if((pb_input_read() & (PB_BTN_A | PB_BTN_B | PB_BTN_X | PB_BTN_Y))
+           == (PB_BTN_A | PB_BTN_B | PB_BTN_X | PB_BTN_Y))
+        {
+            if(++exit_hold >= 60)
+                watchdog_reboot(0, 0, 0);
+        }
+        else
+        {
+            exit_hold = 0;
+        }
 
         pb_display_begin_frame();
         gb_run_frame_dualfetch(&gb);
