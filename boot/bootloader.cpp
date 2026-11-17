@@ -55,7 +55,13 @@ static bool app_present(uint32_t slot, uint32_t end)
     return target >= slot && target < end;
 }
 
-/* 关中断 → 设 VTOR → 载 MSP → bx 到应用 reset handler，不返回 */
+/* 设 VTOR → 载 MSP → 重新开中断 → bx 到应用 reset handler，不返回
+ *
+ * 关键：跳转期间短暂关中断只是为了保证改 VTOR/MSP 时不被打断，但绝不能把
+ * PRIMASK=1 留给应用。pico-sdk 的 crt0/runtime_init 不会重新开中断（正常上电
+ * 默认就是开的），而应用 pb_display_init 里的 sleep_ms 走 WFE + 定时器中断
+ * 唤醒，中断一直关着会永久挂死、屏幕黑屏。所以 bx 前必须 cpsie i，让应用
+ * 处于和正常上电一致的状态。 */
 static void __attribute__((noreturn))
 jump_to_app(uint32_t slot)
 {
@@ -68,6 +74,7 @@ jump_to_app(uint32_t slot)
 
     __asm volatile (
         "msr msp, %0\n"
+        "cpsie i\n"
         "bx  %1\n"
         : : "r"(sp), "r"(pc) : "memory");
     __builtin_unreachable();
