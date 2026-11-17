@@ -182,6 +182,21 @@ void pb_audio_init(void)
     audio_stream_start();
 }
 
+/* 环形缓冲剩余可写帧数（扣掉 4 帧余量）。与 PWM 后端同语义：0 = 这一轮装不下，
+ * 上游应把整块留到下次再送；欠载时返回整环，让 submit 自己 resync。
+ * 没有这个函数，上游只能硬塞，submit 会静默丢掉超出部分——那就是破音的来源。 */
+size_t pb_audio_free(void)
+{
+    if(!s_inited || !s_stream_on || s_in_tone) return 0;
+
+    uint32_t rpos = read_position();
+    int32_t used = (int32_t)(s_wp - rpos);
+    if(used <= 0) return PB_AUDIO_RING;   /* 欠载：submit 会自行 resync，这里放行 */
+
+    int32_t room = (int32_t)PB_AUDIO_RING - used - (int32_t)ROOM_MARGIN;
+    return room > 0 ? (size_t)room : 0;
+}
+
 void pb_audio_submit(const int16_t *mono, size_t count)
 {
     if(!s_inited) return;
