@@ -91,6 +91,12 @@ void pb_fill_screen(uint16_t color);
  * 用这个，和 pb_fb/带池互不影响。 */
 void pb_display_push_rect(int x, int y, int w, int h, const uint16_t *rgb565);
 
+/* 异步块推送：start 开窗、words 挂 DMA 后立即返回、flush 等传输完并收尾。
+ * 调用方可以在 DMA 搬一块像素的同时去准备下一块（模拟器的双缓冲推屏就用这套）。 */
+void pb_display_push_start(int x, int y, int w, int h);
+void pb_display_push_words(const uint32_t *words, size_t nwords);
+void pb_display_push_flush(void);
+
 /* 改 MADCTL（0x36）：0x40 左右镜像、0x80 上下镜像、0xC0 旋转 180°。
  * 需要翻转画面的核心用；窗口坐标含义不变。 */
 void pb_display_set_madctl(uint8_t madctl);

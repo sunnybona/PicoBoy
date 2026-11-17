@@ -170,6 +170,17 @@ static inline uint16_t to_level(int16_t v)
     return (uint16_t)((int32_t)PWM_MID + scaled);
 }
 
+/* 环形缓冲剩余可写样本数（扣掉 4 个余量）。0 = 这一轮装不下，上游应保留样本、
+ * 下次再送；如果上游照旧硬塞，submit 会静默丢掉超出部分——那就是破音的来源。 */
+size_t pb_audio_free(void)
+{
+    if(!s_inited || !s_stream_on) return 0;
+    int32_t used = (int32_t)(s_wp - read_position());
+    if(used <= 0) return PB_AUDIO_RING;   /* 欠载：submit 会自行 resync，这里放行 */
+    int32_t room = (int32_t)PB_AUDIO_RING - used - (int32_t)ROOM_MARGIN;
+    return room > 0 ? (size_t)room : 0;
+}
+
 void pb_audio_submit(const int16_t *mono, size_t count)
 {
     if(!s_inited) return;

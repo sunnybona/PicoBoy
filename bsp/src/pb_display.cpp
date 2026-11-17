@@ -327,6 +327,45 @@ void pb_display_push_rect(int x, int y, int w, int h, const uint16_t *rgb565)
     lcd_end_pixels();
 }
 
+/* ---- 异步块推送（模拟器双缓冲用） ----
+ * start 开窗并启动一次传输；words 只挂 DMA 立即返回；flush 等传输完并收尾。
+ * 与 push_rect 的区别：调用方可以在 DMA 搬一整块像素的同时去填下一块，
+ * 把 CPU 时间让给模拟器。 */
+static uint8_t s_push_async_open;
+
+void pb_display_push_start(int x, int y, int w, int h)
+{
+    if(w <= 0 || h <= 0) return;
+    if(w & 1) return;
+    if(w > PB_SCREEN_W) return;
+
+    if(s_push_async_open) pb_display_push_flush();
+    if(s_dma_chan >= 0) dma_channel_wait_for_finish_blocking(s_dma_chan);
+
+    lcd_set_window((uint16_t)x, (uint16_t)y, (uint16_t)w, (uint16_t)h);
+    lcd_cmd(0x2C);
+    pio_tx_idle();
+    lcd_pio_configure(1);
+    gpio_put(PB_PIN_LCD_DC, 1);
+    gpio_put(PB_PIN_LCD_CS, 0);
+    s_push_async_open = 1;
+}
+
+void pb_display_push_words(const uint32_t *words, size_t nwords)
+{
+    if(words == NULL || nwords == 0) return;
+    dma_init_once();
+    dma_channel_set_read_addr(s_dma_chan, words, false);
+    dma_channel_set_trans_count(s_dma_chan, (uint32_t)nwords, true);
+}
+
+void pb_display_push_flush(void)
+{
+    if(s_dma_chan >= 0) dma_channel_wait_for_finish_blocking(s_dma_chan);
+    lcd_end_pixels();
+    s_push_async_open = 0;
+}
+
 /* 改 MADCTL（0x36）：MX=0x40 左右镜像，MY=0x80 上下镜像，两者同时=旋转 180°。
  * 供画面需要翻转的核心使用；窗口坐标含义不变，由面板按新方向解释。 */
 void pb_display_set_madctl(uint8_t madctl)

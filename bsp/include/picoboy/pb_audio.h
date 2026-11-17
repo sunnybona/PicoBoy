@@ -32,6 +32,10 @@ void pb_audio_set_volume(uint8_t vol);
 /* 非阻塞：把单声道 16bit PCM（中心 0）写进环形缓冲；缓冲满则丢弃，不覆盖在播数据 */
 void pb_audio_submit(const int16_t *mono, size_t count);
 
+/* 环形缓冲还能再装多少样本（0 = 满）。给上游做流控：装不下就把这块留到下次，
+ * 避免 submit 静默丢样本造成破音。 */
+size_t pb_audio_free(void);
+
 /* 非阻塞：开始/改变一个持续音调（freq=0 等同于停止）；PWM 硬件持续发声，不占 CPU */
 void pb_tone_start(uint32_t freq_hz);
 void pb_tone_stop(void);
