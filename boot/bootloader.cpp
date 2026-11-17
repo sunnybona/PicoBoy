@@ -7,7 +7,7 @@
  *
  * flash 分区（16MB）：
  *   0x10000000  本 bootloader（64KB）
- *   0x10010000  GBC 槽（到 0x10080000）
+ *   0x10040000  GBC 槽（到 0x10080000）
  *   0x10080000  NES 槽（到 0x10120000）
  *   0x10120000  共享 ROM 区（rom_uploader 写入的 ustar tar，两应用同址直读）
  *
@@ -28,7 +28,7 @@
 #include "hardware/regs/m0plus.h"
 
 /* ---- flash 分区地址 ---- */
-#define GBC_SLOT_ADDR   0x10010000u
+#define GBC_SLOT_ADDR   0x10040000u
 #define GBC_SLOT_END    0x10080000u
 #define NES_SLOT_ADDR   0x10080000u
 #define NES_SLOT_END    0x10120000u

@@ -48,7 +48,7 @@ target_compile_options(picoboy_gbc PRIVATE -O3)
 pico_enable_stdio_usb(picoboy_gbc 1)
 pico_enable_stdio_uart(picoboy_gbc 0)
 
-# GBC 应用链接到固定槽位 0x10010000（由 bootloader 跳转进入），向量表在槽+0x100
+# GBC 应用链接到固定槽位 0x10040000（由 bootloader 跳转进入），向量表在槽+0x100
 set_target_properties(picoboy_gbc PROPERTIES
     PICO_TARGET_LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/memmap_gbc_slot.ld)
 

@@ -1,9 +1,9 @@
-/* GBC 应用槽位链接脚本：仅把 FLASH ORIGIN 改到 GBC 槽 0x10010000，
+/* GBC 应用槽位链接脚本：仅把 FLASH ORIGIN 改到 GBC 槽 0x10040000，
    其余与 memmap_pico16m.ld 完全一致。向量表在槽 + 0x100（boot2 之后）。 */
 
 MEMORY
 {
-    FLASH(rx) : ORIGIN = 0x10010000, LENGTH = 16384k
+    FLASH(rx) : ORIGIN = 0x10040000, LENGTH = 16384k
     RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 256k
     SCRATCH_X(rwx) : ORIGIN = 0x20040000, LENGTH = 4k
     SCRATCH_Y(rwx) : ORIGIN = 0x20041000, LENGTH = 4k
