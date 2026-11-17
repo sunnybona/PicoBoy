@@ -13,6 +13,10 @@
 #include "K6502.h"
 #include "InfoNES_System.h"
 
+/* pico-nes 提速：把解释器主循环放进 RAM（__not_in_flash_func），消除 flash XIP
+ * 等待，参照 PicoSystem_InfoNes 的做法。该宏定义在 pico/platform.h。 */
+#include "pico/platform.h"
+
 /*-------------------------------------------------------------------*/
 /*  Operation Macros                                                 */
 /*-------------------------------------------------------------------*/
@@ -350,7 +354,7 @@ void K6502_Set_Int_Wiring( BYTE byNMI_Wiring, BYTE byIRQ_Wiring )
 /*          Only the specified number of the clocks execute Op.      */
 /*                                                                   */
 /*===================================================================*/
-void K6502_Step( WORD wClocks )
+void __not_in_flash_func(K6502_Step)( WORD wClocks )
 {
 /*
  *  Only the specified number of the clocks execute Op.
@@ -1097,11 +1101,11 @@ void K6502_Step( WORD wClocks )
 // Addressing Op.
 // Data
 // Absolute,X
-static inline BYTE K6502_ReadAbsX(){ WORD wA0, wA1; wA0 = AA_ABS; wA1 = wA0 + X; CLK( ( wA0 & 0x0100 ) != ( wA1 & 0x0100 ) ); return K6502_Read( wA1 ); };
+static inline BYTE __not_in_flash_func(K6502_ReadAbsX)(){ WORD wA0, wA1; wA0 = AA_ABS; wA1 = wA0 + X; CLK( ( wA0 & 0x0100 ) != ( wA1 & 0x0100 ) ); return K6502_Read( wA1 ); };
 // Absolute,Y
 static inline BYTE K6502_ReadAbsY(){ WORD wA0, wA1; wA0 = AA_ABS; wA1 = wA0 + Y; CLK( ( wA0 & 0x0100 ) != ( wA1 & 0x0100 ) ); return K6502_Read( wA1 ); };
 // (Indirect),Y
-static inline BYTE K6502_ReadIY(){ WORD wA0, wA1; wA0 = K6502_ReadZpW( K6502_Read( PC++ ) ); wA1 = wA0 + Y; CLK( ( wA0 & 0x0100 ) != ( wA1 & 0x0100 ) ); return K6502_Read( wA1 ); };
+static inline BYTE __not_in_flash_func(K6502_ReadIY)(){ WORD wA0, wA1; wA0 = K6502_ReadZpW( K6502_Read( PC++ ) ); wA1 = wA0 + Y; CLK( ( wA0 & 0x0100 ) != ( wA1 & 0x0100 ) ); return K6502_Read( wA1 ); };
 
 /*===================================================================*/
 /*                                                                   */

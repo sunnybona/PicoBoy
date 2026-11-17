@@ -79,6 +79,9 @@ target_compile_options(pico_nes PRIVATE -O3)
 target_compile_definitions(pico_nes PRIVATE
     PICO_STACK_SIZE=0x1000
     PICO_CORE1_STACK_SIZE=0x1000
+    # 工程全静态分配、不使用 malloc/new，把默认 2KB 堆缩到 0，腾出 RAM 给
+    # 已标记 __not_in_flash_func 的解释器/内存函数。
+    PICO_HEAP_SIZE=0
 )
 
 pico_enable_stdio_usb(pico_nes 1)

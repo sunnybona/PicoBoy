@@ -100,10 +100,12 @@
 /*  pAPU Event resources                                             */
 /*-------------------------------------------------------------------*/
 
-/* pico-nes 补丁：上游是 15000 个事件（每个 8 字节 = 120KB），RP2040 放不下，
- * 降到 2048（16KB）。一帧里 APU 寄存器写入的正常量级是几十到几百次，
- * 2048 足够；同时写端加了溢出保护（见 InfoNES_pAPU.cpp 的 APU_WRITEFUNC）。 */
-#define APU_EVENT_MAX   2048
+/* pico-nes 补丁：上游是 15000 个事件（每个 8 字节 = 120KB），RP2040 放不下。
+ * 一帧里 APU 寄存器写入的正常量级是几十到几百次，cur_event 每帧重置（见
+ * InfoNES_pAPU.cpp），写端也有溢出保护（APU_WRITEFUNC，写满即丢弃）。
+ * 为把 CPU 解释器 K6502_Step 放进 RAM，这里进一步降到 512（4KB），
+ * 腾出 12KB；正常游戏远用不到 512 个事件。 */
+#define APU_EVENT_MAX   512
 
 struct ApuEvent_t {
   long time;

@@ -18,6 +18,10 @@
 #include "InfoNES_System.h"
 #include "InfoNES_pAPU.h"
 
+/* pico-nes 提速：核心内存读写每次取指/寻址都会调用，放进 RAM 消除 flash XIP
+ * 等待（参照 PicoSystem_InfoNes）。__not_in_flash_func 来自 pico/platform.h。 */
+#include "pico/platform.h"
+
 #ifdef PB_NES_DEBUG_PPU
 #include <stdio.h>
 #endif
@@ -48,7 +52,7 @@ static inline BYTE K6502_ReadZp( BYTE byAddr )
 /*               K6502_Read() : Reading operation                    */
 /*                                                                   */
 /*===================================================================*/
-static inline BYTE K6502_Read( WORD wAddr )
+static inline BYTE __not_in_flash_func(K6502_Read)( WORD wAddr )
 {
 /*
  *  Reading operation
@@ -201,7 +205,7 @@ static inline BYTE K6502_Read( WORD wAddr )
 /*               K6502_Write() : Writing operation                    */
 /*                                                                   */
 /*===================================================================*/
-static inline void K6502_Write( WORD wAddr, BYTE byData )
+static inline void __not_in_flash_func(K6502_Write)( WORD wAddr, BYTE byData )
 {
 /*
  *  Writing operation
