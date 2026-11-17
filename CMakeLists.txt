@@ -25,13 +25,13 @@ pico_sdk_init()
 add_subdirectory(bsp)
 
 # ---------------- Game Boy / GBC ----------------
-# minigb_apu：Game Boy APU。采样率必须与 BSP PWM 载波一致（61035）
+# minigb_apu：Game Boy APU。采样率必须与 BSP 采样率一致（44100）
 # 才能音画平衡，所以宏挂在库上 PUBLIC 传下去。
 add_library(minigb_apu STATIC gbc/minigb_apu/minigb_apu.cpp)
 target_include_directories(minigb_apu PUBLIC gbc/minigb_apu)
 target_compile_definitions(minigb_apu PUBLIC
     MINIGB_APU_AUDIO_FORMAT_S16SYS
-    AUDIO_SAMPLE_RATE=61035
+    AUDIO_SAMPLE_RATE=44100
 )
 
 add_executable(picoboy_gbc

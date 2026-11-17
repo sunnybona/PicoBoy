@@ -6,8 +6,8 @@
  *   - 显示：InfoNES 逐行渲染（WorkFrame 是单行缓冲），每行查表转 RGB565
  *           后交给 pb_push_nes_line()，由 core1 负责搬上屏。
  *   - 输入：8 个按键映射到 NES 手柄 1。
- *   - 音频：pAPU 每帧产出 735 个 44.1kHz 样本，这里重采样到 BSP 的
- *           61035Hz PWM 载波再交给 pb_audio_submit()。
+ *   - 音频：pAPU 每帧产出 735 个 44.1kHz 样本，与 BSP 同为 44100Hz，
+ *           1:1 直通（去直流后）交给 pb_audio_submit()。
  *   - ROM：直接指向 flash 里的 const 数组（XIP 读），不占 RAM。
  */
 #include <stdio.h>
@@ -213,13 +213,11 @@ void InfoNES_MessageBox( char *pszMsg, ... )
 /*===================================================================*/
 /*  音频                                                             */
 /*===================================================================*/
-/* pAPU 固定每帧 735 个样本（44100/60）；PWM 载波是 61035Hz，
- * 一个 16639us 的帧需要约 1015.6 个样本，取整 1016 个。
- * 误差 0.05%，听不出来，也不会累积漂移（每帧都重新对齐）。 */
+/* pAPU 固定每帧 735 个样本（44100/60）；系统采样率也是 44100，
+ * 直接 1:1 处理，不再重采样。每帧重新对齐，不累积漂移。 */
 #define APU_IN_SAMPLES   735
-#define AUDIO_OUT_SAMPLES 1016
 
-static int16_t s_pcm[ AUDIO_OUT_SAMPLES ];
+static int16_t s_pcm[ APU_IN_SAMPLES ];
 static int32_t s_dc_x;      /* 去直流用的两个历史值 */
 static int32_t s_dc_y;
 static bool    s_sound_open;
@@ -250,8 +248,8 @@ void InfoNES_SoundOutput( int samples, BYTE *wave1, BYTE *wave2,
                           BYTE *wave3, BYTE *wave4, BYTE *wave5 )
 {
 /*
- * 把 pAPU 的 5 路波形（0..510 / 0..255 / ...）混成单声道，线性插值重采样到
- * 61035Hz，再去直流、限幅，丢给 BSP 的 DMA 环形缓冲。
+ * 把 pAPU 的 5 路波形（0..510 / 0..255 / ...）混成单声道。输入输出同为
+ * 44100Hz，1:1 不重采样，再去直流、限幅，丢给 BSP 的 DMA 环形缓冲。
  *
  * 注意 pAPU 的波形是"单极性"的（静音=0，发声时是正的上包络），直接播会有
  * 直流偏置，所以过一级一阶高通（截止 ~38Hz）把直流拉回 0。
@@ -261,25 +259,10 @@ void InfoNES_SoundOutput( int samples, BYTE *wave1, BYTE *wave2,
   if ( samples > APU_IN_SAMPLES )
     samples = APU_IN_SAMPLES;
 
-  uint32_t step = ( ( uint32_t )samples << 16 ) / AUDIO_OUT_SAMPLES;
-  uint32_t pos  = 0;
-
-  for ( int n = 0; n < AUDIO_OUT_SAMPLES; ++n )
+  for ( int n = 0; n < samples; ++n )
   {
-    uint32_t idx  = pos >> 16;
-    int32_t  frac = ( int32_t )( pos & 0xFFFFu );
-
-    if ( idx >= ( uint32_t )( samples - 1 ) )    /* 末尾两个样本并一起 */
-    {
-      idx  = ( uint32_t )( samples - 1 );
-      frac = 0;
-    }
-
-    int32_t a = wave1[ idx ] + wave2[ idx ] + wave3[ idx ] +
-                wave4[ idx ] + wave5[ idx ];
-    int32_t b = wave1[ idx + 1 ] + wave2[ idx + 1 ] + wave3[ idx + 1 ] +
-                wave4[ idx + 1 ] + wave5[ idx + 1 ];
-    int32_t v = a + ( ( ( b - a ) * frac ) >> 16 );
+    int32_t v = ( int32_t )wave1[ n ] + wave2[ n ] + wave3[ n ] +
+                wave4[ n ] + wave5[ n ];
 
     /* 一阶去直流：y[n] = x[n] - x[n-1] + 0.996 * y[n-1] */
     int32_t y = v - s_dc_x + ( ( s_dc_y * 255 ) >> 8 );
@@ -291,9 +274,7 @@ void InfoNES_SoundOutput( int samples, BYTE *wave1, BYTE *wave2,
     if ( out < -32000 ) out = -32000;
 
     s_pcm[ n ] = ( int16_t )out;
-
-    pos += step;
   }
 
-  pb_audio_submit( s_pcm, AUDIO_OUT_SAMPLES );
+  pb_audio_submit( s_pcm, samples );
 }

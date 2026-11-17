@@ -263,7 +263,7 @@ int main(void)
     pb_display_start_pusher();
 
     /* APU 输出：立体声交错，再混成单声道。
-     * AUDIO_SAMPLES 是 (61035/59.7275)≈1021 的浮点表达式，不是整型常量表达式，
+     * AUDIO_SAMPLES 是 (44100/59.7275)≈738 的浮点表达式，不是整型常量表达式，
      * 不能直接当数组维度，这里按上限开静态缓冲。 */
     static int16_t pcm[1024 * 2];
     static int16_t mono[1024];
