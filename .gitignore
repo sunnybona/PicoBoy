@@ -1,6 +1,7 @@
 # Build trees (produced by build.ps1 / cmake)
 build/
 build_i2s/
+build_landscape/
 build_standalone/
 _build*/
 _pkg_stage/
