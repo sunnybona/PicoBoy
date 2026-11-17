@@ -17,6 +17,8 @@
  */
 #include "pico/stdlib.h"
 
+#include <stdio.h>
+
 #include "picoboy/board.h"
 #include "picoboy/pb_display.h"
 #include "picoboy/pb_audio.h"
@@ -81,6 +83,25 @@ static void fatal(const char *msg)
         tight_loop_contents();
 }
 
+/* ---- 开机菜单里的反色开关（Y 键）----
+ * 即时翻转面板反色并落盘：跳转后的应用 pb_settings_init 会读到同一份，
+ * 不用进游戏再改。提示串同步显示当前 ON/OFF。 */
+static char s_hint_buf[28];
+
+static void refresh_hint(void)
+{
+    const char *st = pb_settings_get()->invert ? "ON" : "OFF";
+    snprintf(s_hint_buf, sizeof s_hint_buf, "A START  Y INVERT:%s", st);
+}
+
+static void toggle_invert(void)
+{
+    uint8_t nv = pb_settings_get()->invert ? 0u : 1u;
+    pb_settings_set_invert(nv);
+    pb_settings_save();
+    refresh_hint();
+}
+
 int main(void)
 {
     set_sys_clock_khz(PB_SYS_CLOCK_KHZ, true);
@@ -116,13 +137,15 @@ int main(void)
     if(n == 0)
         fatal("NO APP IN FLASH");
 
+    refresh_hint();
+
     pb_menu_style_t style;
     style.title      = "PICOBOY";
     style.subtitle   = "SELECT SYSTEM";
-    style.hint       = "A START";
+    style.hint       = s_hint_buf;
     style.info_color = PB_CYAN;
 
-    pb_rom_menu_set_setup_cb(NULL);
+    pb_rom_menu_set_setup_cb(toggle_invert);
     int sel = pb_rom_menu_select(&style, items, n);
     if(sel < 0)
         fatal("MENU ERROR");
